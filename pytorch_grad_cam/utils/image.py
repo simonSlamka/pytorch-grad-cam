@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import torch
 from torchvision.transforms import Compose, Normalize, ToTensor
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import math
 
 
@@ -84,7 +84,8 @@ def show_factorization_on_image(img: np.ndarray,
                                 explanations: np.ndarray,
                                 colors: List[np.ndarray] = None,
                                 image_weight: float = 0.5,
-                                concept_labels: List = None) -> np.ndarray:
+                                concept_labels: List = None,
+                                output_size: Tuple[int, int] = None) -> np.ndarray:
     """ Color code the different component heatmaps on top of the image.
         Every component color code will be magnified according to the heatmap itensity
         (by modifying the V channel in the HSV color space),
@@ -107,13 +108,22 @@ def show_factorization_on_image(img: np.ndarray,
     if colors is None:
         # taken from https://github.com/edocollins/DFF/blob/master/utils.py
         _cmap = plt.cm.get_cmap('gist_rainbow')
-        colors = [
-            np.array(
-                _cmap(i)) for i in np.arange(
-                0,
-                1,
-                1.0 /
-                n_components)]
+        # Define a list of colors that are brighter and more saturated
+        # These colors are chosen to be distinguishable even with color vision issues
+        bright_colors = [
+            [30, 20, 255],  # Blue
+            [255, 255, 0],  # Yellow
+            [0, 255, 0],  # Lime
+            [0, 255, 255],  # Cyan
+            [255, 0, 255],  # Magenta
+            [255, 0, 0],  # Red
+        ]
+        # Repeat the color list to match the number of components
+        colors = bright_colors * (n_components // len(bright_colors))
+        # Add remaining colors if n_components is not a multiple of the number of colors
+        colors += bright_colors[:n_components % len(bright_colors)]
+        # Convert to numpy arrays and normalize to range [0, 1]
+        colors = [np.array(color) / 255 for color in colors]
     concept_per_pixel = explanations.argmax(axis=0)
     masks = []
     for i in range(n_components):
@@ -136,7 +146,7 @@ def show_factorization_on_image(img: np.ndarray,
         px = 1 / plt.rcParams['figure.dpi']  # pixel in inches
         fig = plt.figure(figsize=(result.shape[1] * px, result.shape[0] * px))
         plt.rcParams['legend.fontsize'] = int(
-            14 * result.shape[0] / 256 / max(1, n_components / 6))
+            12 * result.shape[0] / 256 / max(1, n_components / 6))
         lw = 5 * result.shape[0] / 256
         lines = [Line2D([0], [0], color=colors[i], lw=lw)
                  for i in range(n_components)]
@@ -154,6 +164,9 @@ def show_factorization_on_image(img: np.ndarray,
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
         data = cv2.resize(data, (result.shape[1], result.shape[0]))
         result = np.hstack((result, data))
+
+        if output_size is not None:
+            result = cv2.resize(result, output_size)
     return result
 
 

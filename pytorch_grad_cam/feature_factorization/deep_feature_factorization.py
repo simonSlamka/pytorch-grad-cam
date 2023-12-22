@@ -102,7 +102,9 @@ def run_dff_on_image(model: torch.nn.Module,
                      img_tensor: torch.Tensor,
                      reshape_transform=Optional[Callable],
                      n_components: int = 5,
-                     top_k: int = 2) -> np.ndarray:
+                     top_k: int = 2,
+                     threshold: float=0.5,
+                     output_size: Tuple[int, int] = None) -> np.ndarray:
     """ Helper function to create a Deep Feature Factorization visualization for a single image.
         TBD: Run this on a batch with several images.
     """
@@ -115,6 +117,8 @@ def run_dff_on_image(model: torch.nn.Module,
     concepts, batch_explanations, concept_outputs = dff(
         img_tensor[None, :], n_components)
 
+    batch_explanations = [explanation * (explanation > threshold) for explanation in batch_explanations]
+
     concept_outputs = torch.softmax(
         torch.from_numpy(concept_outputs),
         axis=-1).numpy()
@@ -124,8 +128,11 @@ def run_dff_on_image(model: torch.nn.Module,
     visualization = show_factorization_on_image(
         rgb_img_float,
         batch_explanations[0],
-        image_weight=0.3,
-        concept_labels=concept_label_strings)
+        image_weight=0.35,
+        concept_labels=concept_label_strings,
+        output_size=output_size)
+
+    visualization = Image.fromarray(visualization).resize((visualization.shape[1], img_pil.size[1]))
 
     result = np.hstack((np.array(img_pil), visualization))
     return result
